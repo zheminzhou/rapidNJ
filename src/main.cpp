@@ -52,6 +52,7 @@ namespace options {
   string outputFormat;
   bool fastdist;
   int replicates;
+  int replicates_raw;
   string inputtype;
   bool rapidNJ;
   bool simpleNJ;
@@ -560,6 +561,8 @@ void printUsage(){
   cerr << "                            alignments. All available cores are used by default." << endl;
   cerr << "  -b  --bootstrap ARG       Compute bootstrap values using ARG samples. The output tree will be" << endl;
   cerr << "                            annotated with the bootstrap values." << endl;
+  cerr << "  -r  --bootstrap_raw ARG   Compute bootstrap trees using ARG samples. Only the bootstrap trees will" << endl;
+  cerr << "                            be saved in the output file." << endl;
   cerr << "  -t, --alignment-type ARG  Force the input alignment to be treated as: p = protein alignment, " << endl;
   cerr << "                            d = DNA alignment." << endl;
   //cerr << "  -g  --gpu                 Use CUDA enabled GPU to compute distance estimates." << endl;
@@ -568,8 +571,24 @@ void printUsage(){
   exit(1);
 }
 
-int main( int argc, char* argv[] ) {    
 
+unsigned long mix(unsigned long a, unsigned long b, unsigned long c)
+{
+    a=a-b;  a=a-c;  a=a^(c >> 13);
+    b=b-c;  b=b-a;  b=b^(a << 8);
+    c=c-a;  c=c-b;  c=c^(b >> 13);
+    a=a-b;  a=a-c;  a=a^(c >> 12);
+    b=b-c;  b=b-a;  b=b^(a << 16);
+    c=c-a;  c=c-b;  c=c^(b >> 5);
+    a=a-b;  a=a-c;  a=a^(c >> 3);
+    b=b-c;  b=b-a;  b=b^(a << 10);
+    c=c-a;  c=c-b;  c=c^(b >> 15);
+    return c;
+}
+
+
+int main( int argc, char* argv[] ) {    
+  srand(mix(clock(), time(NULL), getpid()));
   using namespace GetOpt;
   GetOpt_pp opts(argc, argv);
 
@@ -589,6 +608,7 @@ int main( int argc, char* argv[] ) {
   opts >> OptionPresent('f', "no-rapiddist", options::fastdist);
   opts >> Option('c',"cores", options::cores, -1);
   opts >> Option('b',"bootstrap", options::replicates, -1);
+  opts >> Option('r',"bootstrap_raw", options::replicates_raw, -1);
   opts >> Option('t',"alignment-type", options::inputtype, "");
   opts >> OptionPresent('g', "gpu", options::gpu);
   opts >> OptionPresent('n', "no-negative-length", options::negative_branches);
@@ -721,6 +741,20 @@ int main( int argc, char* argv[] ) {
     } else {
       computeDistanceMatrix(false, out, true, dl);  
     }    
+  } else if(options::replicates_raw > -1) {
+    pb->childProgress(1.0 / (options::replicates_raw + 1.0));
+    for(int i = 0; i < options::replicates_raw; i++) {
+      dl->sample_sequences();
+      pb->childProgress(1.0 / (options::replicates_raw + 1.0));
+      polytree* replicate = computeTree(out, dl, pb);
+      if(options::verbose) {
+        cerr << "Comparing trees..." << endl;
+      }
+      replicate->serialize_tree(out);
+        //cout << "---------------------" << i << "-------------------------" << endl;
+      delete replicate;
+    }
+    cout << endl;
   } else {
     if(options::replicates > -1) {
       pb->childProgress(1.0 / (options::replicates + 1.0));

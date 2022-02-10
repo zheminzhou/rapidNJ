@@ -10,7 +10,7 @@ dataloader::dataloader(void){
   gapFilters_original = NULL;
   BLOCK_SIZE = sizeof(unsigned int) * 8;
   //srand (time(NULL));
-  srand(0); 
+  //srand(0); 
 }
 
 void dataloader::sample_fast_dist() {  
